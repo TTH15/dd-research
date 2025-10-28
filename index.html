@@ -11,9 +11,6 @@
 
     <!-- Chart.js for line chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-    <!-- Configuration -->
-    <script src="config.js"></script>
 </head>
 
 <body>
@@ -129,6 +126,17 @@
         </div>
     </dialog>
 
+    <!-- Configuration (動的読み込み) -->
+    <script>
+        // config.jsを動的に読み込み（存在しない場合はスキップ）
+        const configScript = document.createElement('script');
+        configScript.src = 'config.js';
+        configScript.onerror = () => {
+            console.warn('⚠️ config.js が見つかりません。config.js.example をコピーして config.js を作成してください。');
+        };
+        document.head.appendChild(configScript);
+    </script>
+    
     <!-- Application Script -->
     <script src="app.js"></script>
 </body>

@@ -779,32 +779,75 @@ function initKeepaCard() {
 
 // 初期化チェック
 function init() {
-    console.log('=== DD Research Web 初期化 ===');
-
-    // 設定確認
-    const cfg = getConfig();
-    if (!cfg) {
-        status('config.js が読み込まれていません', true);
-        console.error('config.js を作成してください');
-        return;
-    }
-
-    console.log('Config loaded:', {
-        projectUrl: cfg.supabase?.projectUrl,
-        hasAnonKey: !!cfg.supabase?.anonKey,
-        tableName: cfg.supabase?.tableName
-    });
-
-    if (!cfg.supabase?.projectUrl || !cfg.supabase?.anonKey) {
-        status('Supabase設定が不完全です', true);
-        console.error('config.js の supabase 設定を確認してください');
-        return;
-    }
-
-    initKeepaCard();
-    renderPresets();
-    setupInfiniteScroll();
-    applyFilters();
+  console.log('=== DD Research Web 初期化 ===');
+  
+  // 設定確認
+  const cfg = getConfig();
+  if (!cfg) {
+    status('config.js が読み込まれていません', true);
+    console.error('❌ config.js を作成してください');
+    
+    // UIにセットアップ案内を表示
+    els.tbody.innerHTML = `
+      <tr><td colspan="12" style="text-align:center;padding:40px;">
+        <div style="max-width:600px;margin:0 auto;">
+          <h2 style="color:#ff6b6b;margin-bottom:16px;">⚠️ 設定ファイルが見つかりません</h2>
+          <p style="font-size:16px;line-height:1.6;margin-bottom:20px;">
+            このアプリを使用するには、Supabase接続設定が必要です。
+          </p>
+          <div style="text-align:left;background:#1a2332;padding:20px;border-radius:12px;border:1px solid var(--line);">
+            <h3 style="margin-top:0;">セットアップ手順：</h3>
+            <ol style="line-height:1.8;">
+              <li><code>config.js.example</code> を <code>config.js</code> にコピー</li>
+              <li><code>config.js</code> を開いて、Supabase情報を記入</li>
+              <li>ページをリロード</li>
+            </ol>
+            <p style="margin-bottom:0;color:var(--muted);font-size:14px;">
+              詳細は <code>README.md</code> を参照してください。
+            </p>
+          </div>
+        </div>
+      </td></tr>
+    `;
+    return;
+  }
+  
+  console.log('Config loaded:', {
+    projectUrl: cfg.supabase?.projectUrl,
+    hasAnonKey: !!cfg.supabase?.anonKey,
+    tableName: cfg.supabase?.tableName
+  });
+  
+  if (!cfg.supabase?.projectUrl || !cfg.supabase?.anonKey) {
+    status('Supabase設定が不完全です', true);
+    console.error('config.js の supabase 設定を確認してください');
+    
+    // UIに設定不備の案内を表示
+    els.tbody.innerHTML = `
+      <tr><td colspan="12" style="text-align:center;padding:40px;">
+        <div style="max-width:600px;margin:0 auto;">
+          <h2 style="color:#ff6b6b;margin-bottom:16px;">⚠️ Supabase設定が不完全です</h2>
+          <p style="font-size:16px;line-height:1.6;margin-bottom:20px;">
+            <code>config.js</code> のSupabase設定を確認してください。
+          </p>
+          <div style="text-align:left;background:#1a2332;padding:20px;border-radius:12px;border:1px solid var(--line);">
+            <h3 style="margin-top:0;">必要な設定：</h3>
+            <ul style="line-height:1.8;">
+              <li><code>projectUrl</code>: ${cfg.supabase?.projectUrl ? '✅ 設定済み' : '❌ 未設定'}</li>
+              <li><code>anonKey</code>: ${cfg.supabase?.anonKey ? '✅ 設定済み' : '❌ 未設定'}</li>
+              <li><code>tableName</code>: ${cfg.supabase?.tableName || 'products_dd (デフォルト)'}</li>
+            </ul>
+          </div>
+        </div>
+      </td></tr>
+    `;
+    return;
+  }
+  
+  initKeepaCard();
+  renderPresets();
+  setupInfiniteScroll();
+  applyFilters();
 }
 
 init();

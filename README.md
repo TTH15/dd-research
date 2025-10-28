@@ -2,44 +2,64 @@
 
 Supabase RESTを使用したDD（d-online）商品データのリサーチWebアプリケーション。
 
-## 機能
+## 🚀 機能
 
-- 商品データの検索・フィルタリング
-- 価格履歴の表示（Chart.js）
-- ASIN管理
-- Keepa連携（JAN→ASIN候補検索）
-- CSV エクスポート
-- フィルタプリセット保存
+- ✅ 商品データの検索・フィルタリング
+- ✅ 無限スクロール（自動ページ読み込み）
+- ✅ 価格履歴の表示（Chart.js）
+- ✅ ASIN管理
+- ✅ Keepa連携（JAN→ASIN候補検索、任意）
+- ✅ CSV エクスポート
+- ✅ フィルタプリセット保存
 
-## セットアップ
+## 📋 必要要件
 
-### 1. 設定ファイルの作成
+- ローカルWebサーバー（Python、Node.js、など）
+- Supabaseプロジェクト（無料プランでOK）
+- モダンブラウザ（Chrome、Firefox、Safari、Edge）
 
-`config.js.example` をコピーして `config.js` を作成します：
+## ⚡️ クイックスタート
+
+### 1. リポジトリをクローン
+
+```bash
+git clone https://github.com/TTH15/dd-research.git
+cd dd-research
+```
+
+### 2. 設定ファイルの作成
+
+**重要**: アプリを動作させるには、`config.js`の作成が必須です。
 
 ```bash
 cp config.js.example config.js
 ```
 
-### 2. Supabase設定の記入
+### 3. Supabase設定の記入
 
 `config.js` を開いて、実際の値を設定してください：
 
 ```javascript
 const CONFIG = {
   supabase: {
-    projectUrl: 'https://your-project.supabase.co',
-    anonKey: 'your-actual-anon-key',
-    tableName: 'products_dd'
+    projectUrl: 'https://xxxxx.supabase.co',  // ← あなたのSupabaseプロジェクトURL
+    anonKey: 'eyJhbGc...',                     // ← あなたのAnon/Public Key
+    tableName: 'products_dd'                   // ← テーブル名
   },
   keepa: {
-    functionUrl: '',  // 任意
-    functionKey: ''   // 任意
+    functionUrl: '',  // 任意: Keepa Edge Function URL
+    functionKey: ''   // 任意: Keepa Edge Function Secret
   }
 };
 ```
 
-### 3. アプリケーションの起動
+**Supabase情報の取得方法**:
+1. [supabase.com](https://supabase.com) にログイン
+2. プロジェクトを選択
+3. **Settings** → **API** を開く
+4. **Project URL** と **anon public key** をコピー
+
+### 4. アプリケーションの起動
 
 ローカルサーバーで起動してください：
 
@@ -52,6 +72,12 @@ npx http-server -p 8000
 ```
 
 ブラウザで `http://localhost:8000` にアクセスします。
+
+### 5. 動作確認
+
+正しく設定できていれば、商品データが表示されます。
+
+**エラーが出る場合**: `TROUBLESHOOTING.md` を参照してください。
 
 ## 必要なSupabaseテーブル
 
@@ -97,13 +123,31 @@ dd-research/
 └── README.md           # このファイル
 ```
 
-## 注意事項
+## 🔧 トラブルシューティング
 
-- `config.js` にはSupabaseの認証情報が含まれるため、**絶対にGitにコミットしないでください**
-- `.gitignore` に `config.js` が含まれていることを確認してください
-- Anon Keyは公開されても問題ないキーですが、Row Level Security (RLS) を適切に設定してください
+### config.jsが見つかりません
 
-## ライセンス
+画面に「⚠️ 設定ファイルが見つかりません」と表示される場合：
+
+1. `config.js.example` を `config.js` にコピーしたか確認
+2. `config.js` が`dd-research`フォルダ直下にあるか確認
+3. ページをリロード
+
+### データが取得できない
+
+`TROUBLESHOOTING.md` を参照してください。よくある原因：
+- Supabase URLまたはキーの間違い
+- Row Level Security (RLS) の設定
+- テーブル名の間違い
+
+## 🔒 セキュリティ注意事項
+
+- ⚠️ `config.js` にはSupabaseの認証情報が含まれます
+- ⚠️ **絶対に`config.js`をGitにコミットしないでください**
+- ✅ `.gitignore` に `config.js` が含まれています（自動除外）
+- ✅ Anon Keyは公開されても問題ありませんが、Row Level Security (RLS) を適切に設定してください
+
+## 📝 ライセンス
 
 Private Use
 
