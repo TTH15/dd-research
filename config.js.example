@@ -1,0 +1,20 @@
+// Supabase設定
+// このファイルをコピーして config.js を作成し、実際の値を設定してください
+// config.js は .gitignore に含まれており、Gitにコミットされません
+
+const CONFIG = {
+  // Supabase プロジェクト設定
+  supabase: {
+    projectUrl: 'https://xxxxx.supabase.co',  // SupabaseプロジェクトURL
+    anonKey: 'your-anon-key-here',            // Supabase Anon/Public Key
+    tableName: 'products_dd'                   // 使用するテーブル名
+  },
+
+  // Keepa Edge Function 設定（任意）
+  // JAN→ASIN候補の自動取得を使う場合のみ設定
+  keepa: {
+    functionUrl: '',  // Edge Function URL（任意）
+    functionKey: ''   // Edge Function Secret（任意）
+  }
+};
+

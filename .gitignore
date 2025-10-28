@@ -1,0 +1,13 @@
+# 設定ファイル（実際の認証情報が含まれるため）
+config.js
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
