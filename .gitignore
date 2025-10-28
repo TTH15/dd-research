@@ -1,5 +1,7 @@
-# 設定ファイル（実際の認証情報が含まれるため）
-config.js
+# 設定ファイル
+# 公開デプロイする場合はコメントアウトしてconfig.jsをコミット
+# Anon Keyは公開されても問題ありません（RLSで保護）
+# config.js
 
 # macOS
 .DS_Store

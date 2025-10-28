@@ -140,12 +140,67 @@ dd-research/
 - Row Level Security (RLS) の設定
 - テーブル名の間違い
 
+## 🌐 公開デプロイ
+
+このアプリを公開URLでデプロイする場合、`config.js`をGitにコミットしてもOKです。
+
+### 公開デプロイの手順
+
+1. **`.gitignore`の編集** - `config.js`の除外をコメントアウト
+
+```bash
+# .gitignore
+# config.js  ← この行をコメントアウト
+```
+
+2. **config.jsをコミット**
+
+```bash
+git add config.js
+git commit -m "Add config.js for deployment"
+git push origin main
+```
+
+3. **GitHub Pages / Netlify / Vercel などでデプロイ**
+
+デプロイ例：
+- **GitHub Pages**: Settings → Pages → Source: main branch
+- **Netlify**: GitHub連携で自動デプロイ
+- **Vercel**: GitHub連携で自動デプロイ
+
 ## 🔒 セキュリティ注意事項
 
-- ⚠️ `config.js` にはSupabaseの認証情報が含まれます
-- ⚠️ **絶対に`config.js`をGitにコミットしないでください**
-- ✅ `.gitignore` に `config.js` が含まれています（自動除外）
-- ✅ Anon Keyは公開されても問題ありませんが、Row Level Security (RLS) を適切に設定してください
+### Anon Keyは公開されても安全
+
+- ✅ Supabaseの`Anon Key`は**公開されても問題ありません**
+- ✅ これはクライアントサイドで使用するための公開キーです
+- ⚠️ ただし、**Row Level Security (RLS)** を適切に設定する必要があります
+
+### RLS設定（必須）
+
+公開デプロイする場合は、Supabaseで以下のポリシーを設定してください：
+
+```sql
+-- 読み取りは全員許可
+ALTER TABLE products_dd ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users" ON products_dd
+  FOR SELECT USING (true);
+
+-- 更新は全員許可（ASIN更新用）※必要に応じて制限を追加
+CREATE POLICY "Enable update access for all users" ON products_dd
+  FOR UPDATE USING (true) WITH CHECK (true);
+
+-- 価格履歴も読み取り許可
+ALTER TABLE products_dd_price_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users" ON products_dd_price_history
+  FOR SELECT USING (true);
+```
+
+### より厳格な制限をかけたい場合
+
+特定のIPや認証ユーザーのみアクセス可能にする場合は、RLSポリシーで制御できます
 
 ## 📝 ライセンス
 

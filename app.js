@@ -779,16 +779,16 @@ function initKeepaCard() {
 
 // 初期化チェック
 function init() {
-  console.log('=== DD Research Web 初期化 ===');
-  
-  // 設定確認
-  const cfg = getConfig();
-  if (!cfg) {
-    status('config.js が読み込まれていません', true);
-    console.error('❌ config.js を作成してください');
-    
-    // UIにセットアップ案内を表示
-    els.tbody.innerHTML = `
+    console.log('=== DD Research Web 初期化 ===');
+
+    // 設定確認
+    const cfg = getConfig();
+    if (!cfg) {
+        status('config.js が読み込まれていません', true);
+        console.error('❌ config.js を作成してください');
+
+        // UIにセットアップ案内を表示
+        els.tbody.innerHTML = `
       <tr><td colspan="12" style="text-align:center;padding:40px;">
         <div style="max-width:600px;margin:0 auto;">
           <h2 style="color:#ff6b6b;margin-bottom:16px;">⚠️ 設定ファイルが見つかりません</h2>
@@ -809,21 +809,21 @@ function init() {
         </div>
       </td></tr>
     `;
-    return;
-  }
-  
-  console.log('Config loaded:', {
-    projectUrl: cfg.supabase?.projectUrl,
-    hasAnonKey: !!cfg.supabase?.anonKey,
-    tableName: cfg.supabase?.tableName
-  });
-  
-  if (!cfg.supabase?.projectUrl || !cfg.supabase?.anonKey) {
-    status('Supabase設定が不完全です', true);
-    console.error('config.js の supabase 設定を確認してください');
-    
-    // UIに設定不備の案内を表示
-    els.tbody.innerHTML = `
+        return;
+    }
+
+    console.log('Config loaded:', {
+        projectUrl: cfg.supabase?.projectUrl,
+        hasAnonKey: !!cfg.supabase?.anonKey,
+        tableName: cfg.supabase?.tableName
+    });
+
+    if (!cfg.supabase?.projectUrl || !cfg.supabase?.anonKey) {
+        status('Supabase設定が不完全です', true);
+        console.error('config.js の supabase 設定を確認してください');
+
+        // UIに設定不備の案内を表示
+        els.tbody.innerHTML = `
       <tr><td colspan="12" style="text-align:center;padding:40px;">
         <div style="max-width:600px;margin:0 auto;">
           <h2 style="color:#ff6b6b;margin-bottom:16px;">⚠️ Supabase設定が不完全です</h2>
@@ -841,13 +841,13 @@ function init() {
         </div>
       </td></tr>
     `;
-    return;
-  }
-  
-  initKeepaCard();
-  renderPresets();
-  setupInfiniteScroll();
-  applyFilters();
+        return;
+    }
+
+    initKeepaCard();
+    renderPresets();
+    setupInfiniteScroll();
+    applyFilters();
 }
 
 init();
