@@ -27,12 +27,12 @@ const els = {
 };
 
 let state = {
-  page: 1,
-  pageSize: Number(localStorage.getItem('ddweb_pageSize') || 50),
-  q: '',
-  brand: '',
-  priceMax: '',
-  asinOnly: false
+    page: 1,
+    pageSize: Number(localStorage.getItem('ddweb_pageSize') || 50),
+    q: '',
+    brand: '',
+    priceMax: '',
+    asinOnly: false
 };
 
 els.pageSize.value = state.pageSize;
@@ -95,10 +95,10 @@ async function sbFetch(path, opts = {}) {
    データ取得＆描画
 ========================= */
 async function fetchPage() {
-  try {
-    const { table } = supa();
-    els.status.textContent = 'Loading...';
-    const from = (state.page - 1) * state.pageSize;
+    try {
+        const { table } = supa();
+        els.status.textContent = 'Loading...';
+        const from = (state.page - 1) * state.pageSize;
 
         const p = new URLSearchParams();
         // まずは全カラムを取得してテーブル構造を確認
@@ -128,25 +128,25 @@ async function fetchPage() {
         const total = Number(r.headers.get('content-range')?.split('/')?.[1] || 0);
         const rows = await r.json();
 
-    console.log('Fetched rows:', rows.length, 'Total:', total);
-    
-    // 最初の行のカラム名を表示
-    if (rows.length > 0) {
-      console.log('テーブルのカラム名:', Object.keys(rows[0]));
-      console.log('サンプルデータ:', rows[0]);
-    }
-    
-    render(rows, total);
-    status(`Loaded ${rows.length}/${total}`);
-  } catch (error) {
-    console.error('fetchPage error:', error);
-    status(`エラー: ${error.message}`, true);
-    els.tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:20px;color:#ff6b6b;">
+        console.log('Fetched rows:', rows.length, 'Total:', total);
+
+        // 最初の行のカラム名を表示
+        if (rows.length > 0) {
+            console.log('テーブルのカラム名:', Object.keys(rows[0]));
+            console.log('サンプルデータ:', rows[0]);
+        }
+
+        render(rows, total);
+        status(`Loaded ${rows.length}/${total}`);
+    } catch (error) {
+        console.error('fetchPage error:', error);
+        status(`エラー: ${error.message}`, true);
+        els.tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:20px;color:#ff6b6b;">
       <strong>データ取得エラー</strong><br/>
       ${error.message}<br/>
       <small>ブラウザのコンソールで詳細を確認してください</small>
     </td></tr>`;
-  }
+    }
 }
 
 function render(rows, total) {
@@ -672,34 +672,34 @@ document.getElementById('reload').onclick = () => {
 };
 
 document.getElementById('prev').onclick = () => {
-  state.page = Math.max(1, state.page - 1);
-  fetchPage();
+    state.page = Math.max(1, state.page - 1);
+    fetchPage();
 };
 
 document.getElementById('next').onclick = () => {
-  state.page = state.page + 1;
-  fetchPage();
+    state.page = state.page + 1;
+    fetchPage();
 };
 
 els.pageSize.onchange = () => {
-  state.pageSize = Number(els.pageSize.value);
-  localStorage.setItem('ddweb_pageSize', state.pageSize);
-  state.page = 1;
-  fetchPage();
+    state.pageSize = Number(els.pageSize.value);
+    localStorage.setItem('ddweb_pageSize', state.pageSize);
+    state.page = 1;
+    fetchPage();
 };
 
 let t;
 ['q', 'brand', 'priceMax', 'asinOnly'].forEach(id => {
-  document.getElementById(id).addEventListener(
-    id === 'asinOnly' ? 'change' : 'input',
-    () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        state.page = 1;
-        applyFilters();
-      }, 260);
-    }
-  );
+    document.getElementById(id).addEventListener(
+        id === 'asinOnly' ? 'change' : 'input',
+        () => {
+            clearTimeout(t);
+            t = setTimeout(() => {
+                state.page = 1;
+                applyFilters();
+            }, 260);
+        }
+    );
 });
 
 function applyFilters() {
@@ -800,9 +800,9 @@ function init() {
         return;
     }
 
-  initKeepaCard();
-  renderPresets();
-  applyFilters();
+    initKeepaCard();
+    renderPresets();
+    applyFilters();
 }
 
 init();
