@@ -27,15 +27,12 @@ const els = {
 };
 
 let state = {
-    page: 1,
-    pageSize: Number(localStorage.getItem('ddweb_pageSize') || 50),
-    q: '',
-    brand: '',
-    priceMax: '',
-    asinOnly: false,
-    total: 0,
-    isLoading: false,
-    hasMore: true
+  page: 1,
+  pageSize: Number(localStorage.getItem('ddweb_pageSize') || 50),
+  q: '',
+  brand: '',
+  priceMax: '',
+  asinOnly: false
 };
 
 els.pageSize.value = state.pageSize;
@@ -97,14 +94,11 @@ async function sbFetch(path, opts = {}) {
 /* =========================
    データ取得＆描画
 ========================= */
-async function fetchPage(append = false) {
-    if (state.isLoading || (!state.hasMore && append)) return;
-
-    try {
-        state.isLoading = true;
-        const { table } = supa();
-        els.status.textContent = 'Loading...';
-        const from = (state.page - 1) * state.pageSize;
+async function fetchPage() {
+  try {
+    const { table } = supa();
+    els.status.textContent = 'Loading...';
+    const from = (state.page - 1) * state.pageSize;
 
         const p = new URLSearchParams();
         // まずは全カラムを取得してテーブル構造を確認
@@ -134,39 +128,30 @@ async function fetchPage(append = false) {
         const total = Number(r.headers.get('content-range')?.split('/')?.[1] || 0);
         const rows = await r.json();
 
-        console.log('Fetched rows:', rows.length, 'Total:', total);
-
-        // 最初の行のカラム名を表示
-        if (rows.length > 0) {
-            console.log('テーブルのカラム名:', Object.keys(rows[0]));
-            console.log('サンプルデータ:', rows[0]);
-        }
-
-        state.total = total;
-        state.hasMore = (state.page * state.pageSize) < total;
-
-        render(rows, total, append);
-        status(`Loaded ${rows.length}/${total}`);
-    } catch (error) {
-        console.error('fetchPage error:', error);
-        status(`エラー: ${error.message}`, true);
-        if (!append) {
-            els.tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:20px;color:#ff6b6b;">
-        <strong>データ取得エラー</strong><br/>
-        ${error.message}<br/>
-        <small>ブラウザのコンソールで詳細を確認してください</small>
-      </td></tr>`;
-        }
-    } finally {
-        state.isLoading = false;
+    console.log('Fetched rows:', rows.length, 'Total:', total);
+    
+    // 最初の行のカラム名を表示
+    if (rows.length > 0) {
+      console.log('テーブルのカラム名:', Object.keys(rows[0]));
+      console.log('サンプルデータ:', rows[0]);
     }
+    
+    render(rows, total);
+    status(`Loaded ${rows.length}/${total}`);
+  } catch (error) {
+    console.error('fetchPage error:', error);
+    status(`エラー: ${error.message}`, true);
+    els.tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:20px;color:#ff6b6b;">
+      <strong>データ取得エラー</strong><br/>
+      ${error.message}<br/>
+      <small>ブラウザのコンソールで詳細を確認してください</small>
+    </td></tr>`;
+  }
 }
 
-function render(rows, total, append = false) {
+function render(rows, total) {
     const tb = els.tbody;
-    if (!append) {
-        tb.innerHTML = '';
-    }
+    tb.innerHTML = '';
 
     rows.forEach(x => {
         const tr = document.createElement('tr');
@@ -271,45 +256,20 @@ function render(rows, total, append = false) {
         tb.appendChild(tr);
     });
 
-    const loadedCount = tb.querySelectorAll('tr').length;
-    els.pageInfo.textContent = `${loadedCount} / ${total}`;
+    const start = (state.page - 1) * state.pageSize + 1;
+    const end = Math.min(state.page * state.pageSize, total);
+    els.pageInfo.textContent = `${start}–${end} / ${total}`;
 
     // ASIN入力ボタンの委譲
-    tb.querySelectorAll('.set-asin:not([data-listener])').forEach(btn => {
-        btn.setAttribute('data-listener', 'true');
+    tb.querySelectorAll('.set-asin').forEach(btn => {
         btn.addEventListener('click', async e => {
             const id = Number(btn.dataset.id);
             const jan = btn.dataset.jan;
             const pasted = prompt(`商品ID ${id}\nASINを入力してください（JAN: ${jan || '-'}）`);
             if (!pasted) return;
             await setAsin(id, pasted.trim());
-            // リロード
-            state.page = 1;
-            state.hasMore = true;
-            fetchPage(false);
+            fetchPage();
         });
-    });
-}
-
-/* =========================
-   無限スクロール
-========================= */
-function setupInfiniteScroll() {
-    const tableWrap = document.querySelector('.table-wrap');
-
-    tableWrap.addEventListener('scroll', () => {
-        if (state.isLoading || !state.hasMore) return;
-
-        const scrollTop = tableWrap.scrollTop;
-        const scrollHeight = tableWrap.scrollHeight;
-        const clientHeight = tableWrap.clientHeight;
-
-        // 下から200pxのところまでスクロールしたら次を読み込む
-        if (scrollTop + clientHeight >= scrollHeight - 200) {
-            console.log('Loading next page...', state.page + 1);
-            state.page++;
-            fetchPage(true);
-        }
     });
 }
 
@@ -708,42 +668,38 @@ document.getElementById('exportCsv').onclick = async () => {
 ========================= */
 document.getElementById('reload').onclick = () => {
     state.page = 1;
-    state.hasMore = true;
     applyFilters();
 };
 
-// ページネーションボタンは非表示にするか、もしくは残す場合
 document.getElementById('prev').onclick = () => {
-    // 無限スクロールでは使用しないが、必要なら残す
-    alert('無限スクロール有効中はページネーションボタンは使用できません');
+  state.page = Math.max(1, state.page - 1);
+  fetchPage();
 };
 
 document.getElementById('next').onclick = () => {
-    // 無限スクロールでは使用しないが、必要なら残す
-    alert('無限スクロール有効中はページネーションボタンは使用できません');
+  state.page = state.page + 1;
+  fetchPage();
 };
 
 els.pageSize.onchange = () => {
-    state.pageSize = Number(els.pageSize.value);
-    localStorage.setItem('ddweb_pageSize', state.pageSize);
-    state.page = 1;
-    state.hasMore = true;
-    fetchPage(false);
+  state.pageSize = Number(els.pageSize.value);
+  localStorage.setItem('ddweb_pageSize', state.pageSize);
+  state.page = 1;
+  fetchPage();
 };
 
 let t;
 ['q', 'brand', 'priceMax', 'asinOnly'].forEach(id => {
-    document.getElementById(id).addEventListener(
-        id === 'asinOnly' ? 'change' : 'input',
-        () => {
-            clearTimeout(t);
-            t = setTimeout(() => {
-                state.page = 1;
-                state.hasMore = true;
-                applyFilters();
-            }, 260);
-        }
-    );
+  document.getElementById(id).addEventListener(
+    id === 'asinOnly' ? 'change' : 'input',
+    () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        state.page = 1;
+        applyFilters();
+      }, 260);
+    }
+  );
 });
 
 function applyFilters() {
@@ -844,10 +800,9 @@ function init() {
         return;
     }
 
-    initKeepaCard();
-    renderPresets();
-    setupInfiniteScroll();
-    applyFilters();
+  initKeepaCard();
+  renderPresets();
+  applyFilters();
 }
 
 init();
