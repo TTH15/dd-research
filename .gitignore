@@ -3,6 +3,9 @@
 # Anon Keyは公開されても問題ありません（RLSで保護）
 # config.js
 
+# Supabase CLI一時ファイル
+supabase/.temp/
+
 # macOS
 .DS_Store
 

@@ -63,16 +63,16 @@ supabase link --project-ref <your-project-ref>
 
 ### 2-3. 環境変数を設定
 
+**重要**: Supabase Edge Functionsでは、`SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` は**自動的に利用可能**です。設定する必要はありません。
+
+設定が必要なのは **Keepa API Key だけ**です：
+
 ```bash
-# Keepa API Key
+# Keepa API Key のみ設定
 supabase secrets set KEEPA_API_KEY=your_keepa_api_key_here
-
-# Supabase URL（自動設定されていなければ）
-supabase secrets set SUPABASE_URL=https://xxxxx.supabase.co
-
-# Service Role Key（Settings → API → service_role key）
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
+
+**注意**: `SUPABASE_` で始まる環境変数は、Supabase CLIが自動的に管理するため、手動設定しようとするとスキップされます。これは正常な動作です。
 
 ### 2-4. Edge Functions をデプロイ
 
@@ -84,60 +84,150 @@ supabase functions deploy keepa-fetch
 supabase functions deploy keepa-batch-update
 ```
 
-### 2-5. Function URLs を取得
+### 2-5. Function URLs を確認
 
 ```bash
 supabase functions list
 ```
 
-以下のようなURLが表示されます：
+以下のような情報が表示されます：
 ```
-keepa-fetch: https://xxxxx.supabase.co/functions/v1/keepa-fetch
-keepa-batch-update: https://xxxxx.supabase.co/functions/v1/keepa-batch-update
+ID                                   | NAME               | SLUG               | STATUS | VERSION | UPDATED_AT (UTC)    
+-------------------------------------|--------------------|--------------------|--------|---------|---------------------
+849360b9-... | keepa-fetch        | keepa-fetch        | ACTIVE | 1       | 2025-11-18 02:50:27 
+daaaeb68-... | keepa-batch-update | keepa-batch-update | ACTIVE | 1       | 2025-11-18 02:50:38 
 ```
 
-### 2-6. バッチ更新関数に環境変数を追加
+**Function URLの構成方法**:
+Function URLは以下の形式で構成されます：
+```
+https://[プロジェクトREF].supabase.co/functions/v1/[関数名]
+```
+
+あなたの場合：
+- `keepa-fetch`: `https://fwmieqfezlagstigtrem.supabase.co/functions/v1/keepa-fetch`
+- `keepa-batch-update`: `https://fwmieqfezlagstigtrem.supabase.co/functions/v1/keepa-batch-update`
+
+### 2-6. バッチ更新関数に環境変数を追加（オプション）
+
+バッチ更新関数が `keepa-fetch` 関数を呼び出すためのURLを設定します：
 
 ```bash
-supabase secrets set KEEPA_FETCH_FUNCTION_URL=https://xxxxx.supabase.co/functions/v1/keepa-fetch
+# あなたのプロジェクトの場合
+supabase secrets set KEEPA_FETCH_FUNCTION_URL=https://fwmieqfezlagstigtrem.supabase.co/functions/v1/keepa-fetch
 ```
+
+**注意**: このURLは、あなたのプロジェクトREFに合わせて調整してください。
 
 ---
 
 ## 📅 Step 3: 定期実行の設定（Cron）
 
-### 方法A: Supabase pg_cron（推奨）
+### 方法A: Supabase pg_cron（推奨・24時間常時稼働）
+
+**重要**: まず、必要な拡張機能を有効化する必要があります。
+
+#### Step 3-1: 拡張機能を有効化
 
 Supabaseダッシュボードで SQL Editor を開き、以下を実行：
 
 ```sql
--- 毎日午前3時に実行
+-- pg_cron拡張機能を有効化（定期実行用）
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- pg_net拡張機能を有効化（HTTPリクエスト用）
+CREATE EXTENSION IF NOT EXISTS pg_net;
+```
+
+**または、UIから有効化**:
+1. Supabaseダッシュボード → **Database** → **Extensions**
+2. `pg_cron` を検索して有効化
+3. `pg_net` を検索して有効化
+
+#### Step 3-2: Cronジョブをスケジュール
+
+拡張機能が有効化されたら、以下を実行：
+
+```sql
+-- 6時間ごとに実行（1日4回、24時間常時稼働）
+-- 0時、6時、12時、18時に実行
+-- 
+-- 注意: YOUR_SERVICE_ROLE_KEY を実際のService Role Keyに置き換えてください
+-- Settings → API → service_role (secret) から取得
 SELECT cron.schedule(
-  'keepa-daily-update',
-  '0 3 * * *',
+  'keepa-batch-update',
+  '0 */6 * * *',
   $$
   SELECT net.http_post(
-    url := 'https://xxxxx.supabase.co/functions/v1/keepa-batch-update',
+    url := 'https://fwmieqfezlagstigtrem.supabase.co/functions/v1/keepa-batch-update',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
+      'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+    )
+  );
+  $$
+);
+
+-- または、より頻繁に実行したい場合（3時間ごと）
+-- SELECT cron.schedule(
+--   'keepa-batch-update',
+--   '0 */3 * * *',
+--   ...
+-- );
+```
+
+**実行タイミングの選択肢**:
+
+### 方法A: バッチ更新（50商品ずつまとめて処理）
+- `'0 */6 * * *'` - 6時間ごと（1日4回、200商品/日）
+- `'0 */3 * * *'` - 3時間ごと（1日8回、400商品/日）
+- `'0 */12 * * *'` - 12時間ごと（1日2回、100商品/日）
+
+**注意**: 50商品の更新に約50分かかります。
+
+### 方法B: 連続更新（1分ごとに1商品ずつ処理）⭐ 推奨
+
+より効率的な方法として、**1分ごとに1商品ずつ処理**する連続更新モードも利用可能です：
+
+```sql
+-- 1分ごとに実行（1日1440回、最大1440商品/日）
+SELECT cron.schedule(
+  'keepa-continuous-update',
+  '* * * * *',  -- 毎分実行
+  $$
+  SELECT net.http_post(
+    url := 'https://fwmieqfezlagstigtrem.supabase.co/functions/v1/keepa-continuous-update',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
     )
   );
   $$
 );
 ```
 
+**メリット**:
+- ✅ レート制限（1 token/min）に最適化
+- ✅ 常時稼働で自動更新
+- ✅ 処理時間が短い（1商品あたり数秒）
+- ✅ エラーが発生しても次の商品に進める
+
+**デプロイ方法**:
+```bash
+supabase functions deploy keepa-continuous-update
+```
+
 ### 方法B: 外部Cron（GitHub Actions、Vercel Cron、など）
 
-GitHub Actionsの例：
+GitHub Actionsの例（6時間ごと）：
 
 `.github/workflows/keepa-update.yml`:
 ```yaml
-name: Keepa Daily Update
+name: Keepa Batch Update
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # 毎日午前3時（UTC）
+    - cron: '0 */6 * * *'  # 6時間ごと（UTC）
   workflow_dispatch:  # 手動実行も可能
 
 jobs:
@@ -147,8 +237,19 @@ jobs:
       - name: Call Keepa Batch Update
         run: |
           curl -X POST \
-            https://xxxxx.supabase.co/functions/v1/keepa-batch-update \
+            https://fwmieqfezlagstigtrem.supabase.co/functions/v1/keepa-batch-update \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}"
+```
+
+**Vercel Cron の例**:
+`vercel.json`:
+```json
+{
+  "crons": [{
+    "path": "/api/keepa-update",
+    "schedule": "0 */6 * * *"
+  }]
+}
 ```
 
 ---

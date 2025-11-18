@@ -5,40 +5,40 @@
 -- ===================================
 -- 1. 商品テーブル（既存）にKeepaデータカラムを追加
 -- ===================================
-ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS 
-  -- Keepa基本データ
-  keepa_updated_at TIMESTAMP,
-  keepa_asin TEXT,
-  
-  -- 価格情報
-  keepa_amazon_price INTEGER,           -- Amazon直販価格
-  keepa_new_price INTEGER,               -- 新品FBA最安値
-  keepa_used_price INTEGER,              -- 中古最安値
-  keepa_buy_box_price INTEGER,           -- カート価格
-  
-  -- ランキング・販売データ
-  keepa_sales_rank INTEGER,              -- 売れ筋ランキング
-  keepa_sales_rank_drops INTEGER,        -- 30日間のランク変動回数（売れた回数の目安）
-  keepa_category TEXT,                   -- カテゴリー
-  
-  -- 出品者情報
-  keepa_seller_count INTEGER,            -- FBA出品者数
-  
-  -- 商品情報
-  keepa_package_weight INTEGER,          -- 重量（グラム）
-  keepa_package_length INTEGER,          -- 長さ（cm）
-  keepa_package_width INTEGER,           -- 幅（cm）
-  keepa_package_height INTEGER,          -- 高さ（cm）
-  
-  -- 利益計算結果（キャッシュ）
-  profit_amount INTEGER,                 -- 利益額
-  profit_rate DECIMAL(5,2),              -- 利益率（%）
-  roi DECIMAL(5,2),                      -- ROI（%）
-  fba_fee INTEGER,                       -- FBA手数料
-  
-  -- 推奨フラグ
-  is_recommended BOOLEAN DEFAULT FALSE,  -- おすすめ商品
-  recommendation_score INTEGER;          -- スコア（0-100）
+
+-- Keepa基本データ
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_updated_at TIMESTAMP;
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_asin TEXT;
+
+-- 価格情報
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_amazon_price INTEGER;           -- Amazon直販価格
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_new_price INTEGER;               -- 新品FBA最安値
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_used_price INTEGER;              -- 中古最安値
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_buy_box_price INTEGER;           -- カート価格
+
+-- ランキング・販売データ
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_sales_rank INTEGER;              -- 売れ筋ランキング
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_sales_rank_drops INTEGER;        -- 30日間のランク変動回数（売れた回数の目安）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_category TEXT;                   -- カテゴリー
+
+-- 出品者情報
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_seller_count INTEGER;            -- FBA出品者数
+
+-- 商品情報
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_package_weight INTEGER;          -- 重量（グラム）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_package_length INTEGER;          -- 長さ（cm）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_package_width INTEGER;           -- 幅（cm）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS keepa_package_height INTEGER;          -- 高さ（cm）
+
+-- 利益計算結果（キャッシュ）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS profit_amount INTEGER;                 -- 利益額
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS profit_rate DECIMAL(5,2);              -- 利益率（%）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS roi DECIMAL(5,2);                      -- ROI（%）
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS fba_fee INTEGER;                       -- FBA手数料
+
+-- 推奨フラグ
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN DEFAULT FALSE;  -- おすすめ商品
+ALTER TABLE products_dd ADD COLUMN IF NOT EXISTS recommendation_score INTEGER;          -- スコア（0-100）
 
 -- インデックス作成
 CREATE INDEX IF NOT EXISTS idx_products_dd_profit_rate ON products_dd(profit_rate DESC);
@@ -73,10 +73,11 @@ CREATE TABLE IF NOT EXISTS auto_update_settings (
 -- デフォルト設定
 INSERT INTO auto_update_settings (setting_name, setting_value) VALUES
   ('auto_update_enabled', 'true'),
-  ('update_interval_hours', '24'),
-  ('min_profit_rate', '20'),              -- 推奨商品の最低利益率
-  ('max_sales_rank', '50000'),            -- 推奨商品の最高ランキング
-  ('max_seller_count', '10')              -- 推奨商品の最大出品者数
+  ('update_interval_hours', '6'),          -- 6時間ごとに更新（1日4回）
+  ('batch_size', '50'),                    -- 1回のバッチで処理する商品数
+  ('min_profit_rate', '20'),               -- 推奨商品の最低利益率
+  ('max_sales_rank', '50000'),             -- 推奨商品の最高ランキング
+  ('max_seller_count', '10')               -- 推奨商品の最大出品者数
 ON CONFLICT (setting_name) DO NOTHING;
 
 -- ===================================
