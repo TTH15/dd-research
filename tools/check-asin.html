@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASIN検出ツール - D-ONLINE商品詳細ページ</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .section h2 {
+            margin-top: 0;
+            color: #0d6efd;
+        }
+
+        .result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .found {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .not-found {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #0d6efd;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+
+        button:hover {
+            background: #0b5ed7;
+        }
+
+        .asin-pattern {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔍 ASIN検出ツール - D-ONLINE商品詳細ページ</h1>
+
+        <div class="section">
+            <h2>📋 使い方</h2>
+            <ol>
+                <li>D-ONLINEの商品詳細ページを開く</li>
+                <li>ページのHTMLをコピー（右クリック → 「ページのソースを表示」または <code>Cmd+Option+U</code>）</li>
+                <li>下のテキストエリアに貼り付ける</li>
+                <li>「ASINを検索」ボタンをクリック</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>📝 HTMLを貼り付け</h2>
+            <textarea id="htmlInput" placeholder="ここにD-ONLINE商品詳細ページのHTMLを貼り付けてください..."></textarea>
+            <button onclick="searchASIN()">🔍 ASINを検索</button>
+            <button onclick="clearInput()">🗑️ クリア</button>
+        </div>
+
+        <div class="section">
+            <h2>📊 検索結果</h2>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        function searchASIN() {
+            const html = document.getElementById('htmlInput').value;
+            const resultsDiv = document.getElementById('results');
+
+            if (!html.trim()) {
+                resultsDiv.innerHTML = '<div class="result not-found">❌ HTMLが入力されていません</div>';
+                return;
+            }
+
+            // HTMLをパース
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            const findings = [];
+
+            // ASINパターン（B + 9文字の英数字）
+            const asinPattern = /B[0-9A-Z]{9}/g;
+
+            // 方法1: metaタグから取得
+            const metaSelectors = [
+                'meta[property="product:retailer_item_id"]',
+                'meta[name="asin"]',
+                'meta[property="og:retailer_item_id"]',
+                'meta[property="product:asin"]',
+                'meta[name="product:asin"]'
+            ];
+
+            for (const selector of metaSelectors) {
+                const meta = doc.querySelector(selector);
+                if (meta) {
+                    const content = meta.getAttribute('content');
+                    if (content && asinPattern.test(content)) {
+                        const match = content.match(asinPattern);
+                        findings.push({
+                            method: `Metaタグ (${selector})`,
+                            asin: match[0],
+                            source: content
+                        });
+                    }
+                }
+            }
+
+            // 方法2: data属性から取得
+            const dataSelectors = [
+                '[data-asin]',
+                '[data-product-asin]',
+                '[data-amazon-asin]',
+                '[data-item-asin]'
+            ];
+
+            for (const selector of dataSelectors) {
+                const elements = doc.querySelectorAll(selector);
+                elements.forEach(el => {
+                    const asin = el.getAttribute('data-asin') ||
+                        el.getAttribute('data-product-asin') ||
+                        el.getAttribute('data-amazon-asin') ||
+                        el.getAttribute('data-item-asin');
+                    if (asin && asinPattern.test(asin)) {
+                        const match = asin.match(asinPattern);
+                        findings.push({
+                            method: `Data属性 (${selector})`,
+                            asin: match[0],
+                            source: asin
+                        });
+                    }
+                });
+            }
+
+            // 方法3: テキストからASINパターンを検索
+            const textContent = doc.body.textContent || '';
+            const textMatches = textContent.match(/ASIN[:\s]+(B[0-9A-Z]{9})/gi);
+            if (textMatches) {
+                textMatches.forEach(match => {
+                    const asinMatch = match.match(asinPattern);
+                    if (asinMatch) {
+                        findings.push({
+                            method: 'テキスト検索 (ASIN: ...)',
+                            asin: asinMatch[0],
+                            source: match.trim()
+                        });
+                    }
+                });
+            }
+
+            // 方法4: AmazonリンクからASINを抽出
+            const amazonLinks = doc.querySelectorAll('a[href*="amazon.co.jp"], a[href*="amazon.com"]');
+            amazonLinks.forEach(link => {
+                const href = link.getAttribute('href') || '';
+                const asinMatch = href.match(/[\/dp\/](B[0-9A-Z]{9})/);
+                if (asinMatch) {
+                    findings.push({
+                        method: 'Amazonリンク',
+                        asin: asinMatch[1],
+                        source: href
+                    });
+                }
+            });
+
+            // 方法5: すべてのテキストからASINパターンを検索
+            const allMatches = textContent.match(asinPattern);
+            if (allMatches) {
+                const uniqueAsins = [...new Set(allMatches)];
+                uniqueAsins.forEach(asin => {
+                    // 既に見つかったASINはスキップ
+                    if (!findings.find(f => f.asin === asin)) {
+                        findings.push({
+                            method: 'テキスト全体から検索',
+                            asin: asin,
+                            source: 'HTML全体'
+                        });
+                    }
+                });
+            }
+
+            // 結果を表示
+            if (findings.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="result not-found">
+                        <h3>❌ ASINが見つかりませんでした</h3>
+                        <p>以下の可能性があります：</p>
+                        <ul>
+                            <li>この商品詳細ページにASINは含まれていない</li>
+                            <li>ASINが別の形式で保存されている</li>
+                            <li>JavaScriptで動的に読み込まれている</li>
+                        </ul>
+                        <p><strong>次のステップ:</strong> JANコードからKeepa APIでASINを検索する方法を使用してください。</p>
+                    </div>
+                `;
+            } else {
+                // 重複を除去
+                const uniqueFindings = [];
+                const seenAsins = new Set();
+                findings.forEach(f => {
+                    if (!seenAsins.has(f.asin)) {
+                        seenAsins.add(f.asin);
+                        uniqueFindings.push(f);
+                    }
+                });
+
+                let html = '<div class="result found">';
+                html += `<h3>✅ ${uniqueFindings.length}個のASINが見つかりました！</h3>`;
+
+                uniqueFindings.forEach((finding, index) => {
+                    html += `
+                        <div style="margin: 15px 0; padding: 10px; background: white; border-left: 4px solid #0d6efd;">
+                            <strong>ASIN #${index + 1}:</strong> <span class="asin-pattern">${finding.asin}</span><br>
+                            <small>検出方法: ${finding.method}</small><br>
+                            <small>ソース: <code>${finding.source.substring(0, 100)}${finding.source.length > 100 ? '...' : ''}</code></small>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+
+                // 統計情報
+                html += '<div class="result info">';
+                html += '<h4>📈 検出統計</h4>';
+                html += `<p>検出方法別の内訳:</p><ul>`;
+                const methodCounts = {};
+                uniqueFindings.forEach(f => {
+                    methodCounts[f.method] = (methodCounts[f.method] || 0) + 1;
+                });
+                Object.entries(methodCounts).forEach(([method, count]) => {
+                    html += `<li>${method}: ${count}件</li>`;
+                });
+                html += '</ul></div>';
+
+                resultsDiv.innerHTML = html;
+            }
+        }
+
+        function clearInput() {
+            document.getElementById('htmlInput').value = '';
+            document.getElementById('results').innerHTML = '';
+        }
+    </script>
+</body>
+
+</html>

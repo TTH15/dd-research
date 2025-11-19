@@ -124,7 +124,7 @@ npx http-server -p 8000
 
 ### セットアップ
 
-詳細は **`SETUP_KEEPA.md`** を参照してください。
+詳細は **`docs/SETUP_KEEPA.md`** を参照してください。
 
 簡単な手順：
 1. Keepa API キーを取得
@@ -174,13 +174,42 @@ CREATE TABLE products_dd_price_history (
 
 ```
 dd-research/
-├── index.html          # メインHTML
-├── styles.css          # スタイルシート
-├── app.js              # アプリケーションロジック
-├── config.js           # 設定ファイル（gitignore対象）
-├── config.js.example   # 設定ファイルのテンプレート
-├── .gitignore          # Git除外設定
-└── README.md           # このファイル
+├── index.html              # メインHTML
+├── styles.css              # スタイルシート
+├── app.js                  # アプリケーションロジック
+├── config.js               # 設定ファイル（gitignore対象）
+├── config.js.example       # 設定ファイルのテンプレート
+├── README.md               # このファイル
+├── .gitignore              # Git除外設定
+│
+├── docs/                   # ドキュメント
+│   ├── IMPLEMENTATION_PLAN.md
+│   ├── NEXT_STEPS.md
+│   ├── PHASE1_SETUP.md
+│   ├── SETUP_KEEPA.md
+│   ├── TEST_GUIDE.md
+│   ├── TROUBLESHOOTING.md
+│   ├── UPDATE_SCHEDULE.md
+│   └── debug-jan-to-asin.md
+│
+├── database/               # データベース関連
+│   ├── schema.sql          # メインスキーマ
+│   ├── asin_matching_schema.sql
+│   ├── jan_search_status_schema.sql
+│   ├── verify-asin-quality.sql
+│   ├── check-jan-to-asin-result.sql
+│   ├── test-jan-to-asin.sql
+│   └── verify-asin-search.sql
+│
+├── supabase/               # Supabase Edge Functions
+│   └── functions/
+│       ├── jan-to-asin-batch/
+│       ├── keepa-batch-update/
+│       ├── keepa-continuous-update/
+│       └── keepa-fetch/
+│
+└── tools/                  # ユーティリティツール
+    └── check-asin.html
 ```
 
 ## 🔧 トラブルシューティング
@@ -195,7 +224,7 @@ dd-research/
 
 ### データが取得できない
 
-`TROUBLESHOOTING.md` を参照してください。よくある原因：
+`docs/TROUBLESHOOTING.md` を参照してください。よくある原因：
 - Supabase URLまたはキーの間違い
 - Row Level Security (RLS) の設定
 - テーブル名の間違い

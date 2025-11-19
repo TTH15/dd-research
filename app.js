@@ -101,24 +101,55 @@ async function fetchPage() {
         const from = (state.page - 1) * state.pageSize;
 
         const p = new URLSearchParams();
-        // まずは全カラムを取得してテーブル構造を確認
         p.set('select', '*');
         p.set('order', 'scraped_at.desc.nullslast');
         p.set('limit', state.pageSize);
         p.set('offset', from);
 
-        // フィルタは一旦コメントアウト（カラム名確認後に修正）
-        // if (state.q) {
-        //     p.append('or', [
-        //         `title.ilike.*${encodeURIComponent(state.q)}*`,
-        //         `jan.ilike.*${encodeURIComponent(state.q)}*`,
-        //         `sku.ilike.*${encodeURIComponent(state.q)}*`,
-        //         `brand.ilike.*${encodeURIComponent(state.q)}*`,
-        //     ].join(','));
-        // }
-        // if (state.brand) p.set('brand.ilike', `*${state.brand}*`);
-        // if (state.priceMax) p.set('price_list.lte', state.priceMax);
-        // if (state.asinOnly) p.set('not.is', 'asin.null');
+        // 検索フィルタ（ASIN検索も追加）
+        // PostgRESTの構文: or=(condition1,condition2) でOR検索
+        // 複数のorパラメータはAND条件として結合される
+        
+        // 検索クエリ（複数カラムでのOR検索）
+        if (state.q) {
+            const q = encodeURIComponent(state.q);
+            const searchConditions = [
+                `product_name.ilike.*${q}*`,
+                `title.ilike.*${q}*`,
+                `name.ilike.*${q}*`,
+                `jan.ilike.*${q}*`,
+                `jan_code.ilike.*${q}*`,
+                `sku.ilike.*${q}*`,
+                `sku_code.ilike.*${q}*`,
+                `brand.ilike.*${q}*`,
+                `maker.ilike.*${q}*`,
+                `manufacturer.ilike.*${q}*`,
+                `asin.ilike.*${q}*`,
+                `keepa_asin.ilike.*${q}*`
+            ];
+            p.append('or', `(${searchConditions.join(',')})`);
+        }
+        
+        // ブランドフィルタ（検索クエリとはAND条件）
+        if (state.brand) {
+            const brandFilter = encodeURIComponent(state.brand);
+            const brandConditions = [
+                `brand.ilike.*${brandFilter}*`,
+                `maker.ilike.*${brandFilter}*`,
+                `manufacturer.ilike.*${brandFilter}*`
+            ];
+            p.append('or', `(${brandConditions.join(',')})`);
+        }
+        
+        // 価格フィルタ（AND条件）
+        if (state.priceMax) {
+            p.set('price_list.lte', state.priceMax);
+        }
+        
+        // ASINありのみフィルタ（AND条件）
+        if (state.asinOnly) {
+            p.append('or', '(asin.not.is.null,keepa_asin.not.is.null)');
+        }
 
         console.log('Fetching from:', `/rest/v1/${table}?${p.toString()}`);
 
@@ -164,7 +195,8 @@ function render(rows, total) {
         const price = x.price_list || x.price || null;
         const jan = x.jan || x.jan_code || '';
         const sku = x.sku || x.sku_code || '';
-        const asin = x.asin || '';
+        // ASINの優先順位: asin > keepa_asin
+        const asin = x.asin || x.keepa_asin || '';
         const scrapedAt = x.scraped_at || x.created_at || x.updated_at || '';
 
         // sel
@@ -626,18 +658,43 @@ document.getElementById('exportCsv').onclick = async () => {
     const p = new URLSearchParams();
     p.set('select', '*');
 
-    // フィルタは一旦コメントアウト
-    // if (state.q) {
-    //   p.append('or', [
-    //     `title.ilike.*${encodeURIComponent(state.q)}*`,
-    //     `jan.ilike.*${encodeURIComponent(state.q)}*`,
-    //     `sku.ilike.*${encodeURIComponent(state.q)}*`,
-    //     `brand.ilike.*${encodeURIComponent(state.q)}*`
-    //   ].join(','));
-    // }
-    // if (state.brand) p.set('brand.ilike', `*${state.brand}*`);
-    // if (state.priceMax) p.set('price_list.lte', state.priceMax);
-    // if (state.asinOnly) p.set('not.is', 'asin.null');
+    // CSVエクスポート時も同じフィルタを適用
+    if (state.q) {
+        const q = encodeURIComponent(state.q);
+        const searchConditions = [
+            `product_name.ilike.*${q}*`,
+            `title.ilike.*${q}*`,
+            `name.ilike.*${q}*`,
+            `jan.ilike.*${q}*`,
+            `jan_code.ilike.*${q}*`,
+            `sku.ilike.*${q}*`,
+            `sku_code.ilike.*${q}*`,
+            `brand.ilike.*${q}*`,
+            `maker.ilike.*${q}*`,
+            `manufacturer.ilike.*${q}*`,
+            `asin.ilike.*${q}*`,
+            `keepa_asin.ilike.*${q}*`
+        ];
+        p.append('or', `(${searchConditions.join(',')})`);
+    }
+    
+    if (state.brand) {
+        const brandFilter = encodeURIComponent(state.brand);
+        const brandConditions = [
+            `brand.ilike.*${brandFilter}*`,
+            `maker.ilike.*${brandFilter}*`,
+            `manufacturer.ilike.*${brandFilter}*`
+        ];
+        p.append('or', `(${brandConditions.join(',')})`);
+    }
+    
+    if (state.priceMax) {
+        p.set('price_list.lte', state.priceMax);
+    }
+    
+    if (state.asinOnly) {
+        p.append('or', '(asin.not.is.null,keepa_asin.not.is.null)');
+    }
 
     const r = await sbFetch(`/rest/v1/${table}?${p.toString()}`);
     const rows = await r.json();
@@ -805,4 +862,13 @@ function init() {
     applyFilters();
 }
 
-init();
+// 初期化は index.html の config.js の onload/onerror で呼び出される
+// 念のため、config.jsが既に読み込まれている場合は即座に初期化
+if (typeof CONFIG !== 'undefined') {
+    // config.jsが既に読み込まれている場合
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+}

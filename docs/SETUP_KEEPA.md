@@ -217,6 +217,40 @@ SELECT cron.schedule(
 supabase functions deploy keepa-continuous-update
 ```
 
+### 方法C: JANからASINを自動検索（スクレイピング後）
+
+スクレイピングで取得したJANコードから、自動的にASINを検索して設定します。
+
+#### Step 3-3: JAN→ASIN自動検索関数をデプロイ
+
+```bash
+supabase functions deploy jan-to-asin-batch
+```
+
+#### Step 3-4: JAN→ASIN自動検索をスケジュール（オプション）
+
+スクレイピング完了後に実行する場合：
+
+```sql
+-- 毎日午前1時に実行（スクレイピング完了後）
+SELECT cron.schedule(
+  'jan-to-asin-batch',
+  '0 1 * * *',  -- 毎日午前1時
+  $$
+  SELECT net.http_post(
+    url := 'https://fwmieqfezlagstigtrem.supabase.co/functions/v1/jan-to-asin-batch',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+    )
+  );
+  $$
+);
+```
+
+**または、手動実行**:
+スクレイピング完了後に、手動で実行することも可能です。
+
 ### 方法B: 外部Cron（GitHub Actions、Vercel Cron、など）
 
 GitHub Actionsの例（6時間ごと）：

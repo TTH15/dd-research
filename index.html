@@ -26,7 +26,7 @@
         <!-- Toolbar -->
         <div class="toolbar">
             <label>検索</label>
-            <input id="q" type="text" placeholder="商品名 / JAN / SKU / ブランド" />
+            <input id="q" type="text" placeholder="商品名 / JAN / SKU / ブランド / ASIN" />
 
             <label>ブランド</label>
             <input id="brand" type="text" placeholder="例: ミルボン" />
@@ -133,6 +133,16 @@
         configScript.src = 'config.js';
         configScript.onerror = () => {
             console.warn('⚠️ config.js が見つかりません。config.js.example をコピーして config.js を作成してください。');
+            // エラー時も初期化を実行（設定なしでエラーメッセージを表示）
+            if (typeof init === 'function') {
+                init();
+            }
+        };
+        configScript.onload = () => {
+            // config.js読み込み完了後に初期化を実行
+            if (typeof init === 'function') {
+                init();
+            }
         };
         document.head.appendChild(configScript);
     </script>
