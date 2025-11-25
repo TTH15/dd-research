@@ -47,6 +47,17 @@
                 ASINありのみ
             </label>
 
+            <label class="switch">
+                <input id="candidateOnly" type="checkbox" />
+                候補商品のみ
+            </label>
+
+            <label>粗利 ≥</label>
+            <input id="minGrossProfit" type="number" min="0" step="100" placeholder="円" />
+
+            <label>粗利率 ≥</label>
+            <input id="minGrossMargin" type="number" min="0" max="100" step="1" placeholder="%" />
+
             <button id="reload" class="primary">再読み込み</button>
             <button id="exportCsv" class="ghost">CSV</button>
             <button id="openAmazonBulk" class="ghost">選択をAmazonで開く</button>
@@ -75,6 +86,45 @@
                     </p>
                     <button id="asinFromKeepa" class="ghost">選択行のJANでASIN候補を検索</button>
                 </div>
+
+                <!-- バッチ処理コントロール -->
+                <div class="card">
+                    <h3 style="margin:0 0 8px 0">バッチ処理</h3>
+                    <p class="muted" style="margin-top:0;margin-bottom:8px;font-size:12px">
+                        バックグラウンドでリサーチを実行します。
+                    </p>
+
+                    <div style="display:grid;gap:8px;margin-bottom:8px">
+                        <div>
+                            <label
+                                style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">JAN→ASIN検索</label>
+                            <div style="display:flex;gap:4px">
+                                <button id="runJanToAsinBatch" class="ghost" style="flex:1">1回実行</button>
+                                <button id="startJanToAsinBatch" class="ghost" style="flex:1">連続実行</button>
+                                <button id="stopJanToAsinBatch" class="ghost" style="flex:1" disabled>停止</button>
+                            </div>
+                            <div id="janToAsinStatus" class="muted" style="font-size:11px;margin-top:4px"></div>
+                        </div>
+
+                        <div>
+                            <label
+                                style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">ASIN→商品情報取得</label>
+                            <div style="display:flex;gap:4px">
+                                <button id="runKeepaSnapshotBatch" class="ghost" style="flex:1">1回実行</button>
+                                <button id="startKeepaSnapshotBatch" class="ghost" style="flex:1">連続実行</button>
+                                <button id="stopKeepaSnapshotBatch" class="ghost" style="flex:1" disabled>停止</button>
+                            </div>
+                            <div id="keepaSnapshotStatus" class="muted" style="font-size:11px;margin-top:4px"></div>
+                        </div>
+                    </div>
+
+                    <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:8px">
+                        <label class="switch" style="font-size:12px">
+                            <input id="autoRefresh" type="checkbox" />
+                            <span>実行中は自動更新</span>
+                        </label>
+                    </div>
+                </div>
             </aside>
 
             <!-- Main Table Area -->
@@ -89,8 +139,15 @@
                                 <th>ブランド</th>
                                 <th>JAN</th>
                                 <th>SKU</th>
-                                <th class="num">DD価格</th>
+                                <th class="num">仕入れ値</th>
                                 <th>ASIN</th>
+                                <th class="num">販売価格</th>
+                                <th class="num">粗利</th>
+                                <th class="num">粗利率</th>
+                                <th class="num">月間販売</th>
+                                <th class="num">月間粗利</th>
+                                <th>Amazon本体</th>
+                                <th>候補</th>
                                 <th>ソース</th>
                                 <th>最終取得</th>
                                 <th>履歴</th>
