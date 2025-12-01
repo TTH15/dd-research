@@ -20,6 +20,7 @@ const els = {
     pageSize: document.getElementById('pageSize'),
     asinOnly: document.getElementById('asinOnly'),
     candidateOnly: document.getElementById('candidateOnly'),
+    keepaAnalyzedOnly: document.getElementById('keepaAnalyzedOnly'),
     minGrossProfit: document.getElementById('minGrossProfit'),
     minGrossMargin: document.getElementById('minGrossMargin'),
     tbody: document.getElementById('tbody'),
@@ -37,15 +38,17 @@ let state = {
     priceMax: '',
     asinOnly: false,
     candidateOnly: false,
+    keepaAnalyzedOnly: false,
     minGrossProfit: '',
     minGrossMargin: '',
-    sortBy: 'monthly_gross_profit', // デフォルトは月間粗利
+    sortBy: 'recommendation_score', // デフォルトは推奨度スコア
     sortOrder: 'desc' // デフォルトは降順
 };
 
 els.pageSize.value = state.pageSize;
 els.asinOnly.checked = state.asinOnly;
 els.candidateOnly.checked = state.candidateOnly;
+els.keepaAnalyzedOnly.checked = state.keepaAnalyzedOnly;
 els.minGrossProfit.value = state.minGrossProfit;
 els.minGrossMargin.value = state.minGrossMargin;
 
@@ -103,6 +106,55 @@ async function sbFetch(path, opts = {}) {
 }
 
 /* =========================
+   ダッシュボード統計
+========================= */
+async function fetchDashboardStats() {
+    try {
+        const viewName = 'product_profit_view';
+        
+        // 統計データを取得
+        const r = await sbFetch(`/rest/v1/${viewName}?select=*`, {
+            headers: { Prefer: 'count=exact' }
+        });
+        
+        const total = Number(r.headers.get('content-range')?.split('/')?.[1] || 0);
+        const rows = await r.json();
+        
+        // 候補商品数
+        const candidates = rows.filter(x => x.is_candidate).length;
+        
+        // Keepa分析済み商品数
+        const analyzed = rows.filter(x => x.is_keepa_analyzed).length;
+        
+        // 平均粗利率（候補商品のみ）
+        const candidateRows = rows.filter(x => x.is_candidate && x.gross_margin_pct != null);
+        const avgMargin = candidateRows.length > 0
+            ? candidateRows.reduce((sum, x) => sum + x.gross_margin_pct, 0) / candidateRows.length
+            : 0;
+        
+        // 月間粗利見込み（候補商品のみ）
+        const monthlyProfit = candidateRows
+            .reduce((sum, x) => sum + (x.monthly_gross_profit || 0), 0);
+        
+        // 表示
+        document.getElementById('statTotal').textContent = `${total.toLocaleString()} (分析済: ${analyzed})`;
+        document.getElementById('statCandidates').textContent = candidates.toLocaleString();
+        document.getElementById('statAvgMargin').textContent = avgMargin > 0 ? `${avgMargin.toFixed(1)}%` : '-';
+        document.getElementById('statMonthlyProfit').textContent = monthlyProfit > 0 
+            ? `¥${new Intl.NumberFormat('ja-JP').format(Math.round(monthlyProfit))}`
+            : '-';
+        
+    } catch (error) {
+        console.error('ダッシュボード統計エラー:', error);
+        // エラー時は基本統計のみ表示
+        document.getElementById('statTotal').textContent = '-';
+        document.getElementById('statCandidates').textContent = '-';
+        document.getElementById('statAvgMargin').textContent = '-';
+        document.getElementById('statMonthlyProfit').textContent = '-';
+    }
+}
+
+/* =========================
    データ取得＆描画
 ========================= */
 async function fetchPage() {
@@ -112,11 +164,10 @@ async function fetchPage() {
         const from = (state.page - 1) * state.pageSize;
 
         const p = new URLSearchParams();
-        // product_profit_viewビューを使用（利益計算済み）
         p.set('select', '*');
         
-        // ソート設定
-        const sortColumn = state.sortBy || 'monthly_gross_profit';
+        // ソート設定（推奨度スコア順）
+        const sortColumn = state.sortBy || 'recommendation_score';
         const sortOrder = state.sortOrder || 'desc';
         p.set('order', `${sortColumn}.${sortOrder}.nullslast`);
         
@@ -183,7 +234,12 @@ async function fetchPage() {
             p.set('gross_margin_pct', `gte.${state.minGrossMargin}`);
         }
 
-        // product_profit_viewビューを使用（存在しない場合はproducts_ddテーブルにフォールバック）
+        // Keepa分析済みフィルタ
+        if (state.keepaAnalyzedOnly) {
+            p.set('is_keepa_analyzed', 'eq.true');
+        }
+
+        // product_profit_viewビューを使用
         let viewName = 'product_profit_view';
         let r;
         let rows;
@@ -197,71 +253,9 @@ async function fetchPage() {
             total = Number(r.headers.get('content-range')?.split('/')?.[1] || 0);
             rows = await r.json();
         } catch (viewError) {
-            // ビューが存在しない場合はproducts_ddテーブルにフォールバック
-            if (viewError.message && viewError.message.includes('product_profit_view')) {
-                console.warn('product_profit_viewが見つかりません。products_ddテーブルを使用します。');
-                console.warn('ビューを作成するには、database/profit_calculation_view.sqlを実行してください。');
-                
-                // フィルタを調整（products_ddテーブル用）
-                const p2 = new URLSearchParams();
-                p2.set('select', '*');
-                p2.set('order', 'scraped_at.desc.nullslast');
-                p2.set('limit', state.pageSize);
-                p2.set('offset', from);
-                
-                // 検索フィルタ
-                if (state.q) {
-                    const q = encodeURIComponent(state.q);
-                    const searchConditions = [
-                        `product_name.ilike.*${q}*`,
-                        `title.ilike.*${q}*`,
-                        `name.ilike.*${q}*`,
-                        `jan.ilike.*${q}*`,
-                        `jan_code.ilike.*${q}*`,
-                        `sku.ilike.*${q}*`,
-                        `sku_code.ilike.*${q}*`,
-                        `brand.ilike.*${q}*`,
-                        `maker.ilike.*${q}*`,
-                        `manufacturer.ilike.*${q}*`,
-                        `asin.ilike.*${q}*`,
-                        `keepa_asin.ilike.*${q}*`
-                    ];
-                    p2.append('or', `(${searchConditions.join(',')})`);
-                }
-                
-                if (state.brand) {
-                    const brandFilter = encodeURIComponent(state.brand);
-                    const brandConditions = [
-                        `brand.ilike.*${brandFilter}*`,
-                        `maker.ilike.*${brandFilter}*`,
-                        `manufacturer.ilike.*${brandFilter}*`
-                    ];
-                    p2.append('or', `(${brandConditions.join(',')})`);
-                }
-                
-                if (state.priceMax) {
-                    p2.set('price_list.lte', state.priceMax);
-                }
-                
-                if (state.asinOnly) {
-                    p2.append('or', '(asin.not.is.null,keepa_asin.not.is.null)');
-                }
-                
-                // 候補商品フィルタ、粗利フィルタ、粗利率フィルタはスキップ（ビューがないため）
-                
-                viewName = 'products_dd';
-                console.log('Fallback to products_dd:', `/rest/v1/${viewName}?${p2.toString()}`);
-                r = await sbFetch(`/rest/v1/${viewName}?${p2.toString()}`, {
-                    headers: { Prefer: 'count=exact' }
-                });
-                total = Number(r.headers.get('content-range')?.split('/')?.[1] || 0);
-                rows = await r.json();
-                
-                // 警告メッセージを表示
-                status('⚠️ product_profit_viewが見つかりません。基本表示モードです。', true);
-            } else {
-                throw viewError;
-            }
+            console.error('ビュー取得エラー:', viewError);
+            console.error('ビューが存在しない可能性があります。database/profit_calculation_view.sqlを実行してください。');
+            throw viewError;
         }
 
         console.log('Fetched rows:', rows.length, 'Total:', total);
@@ -287,37 +281,66 @@ async function fetchPage() {
     }
 }
 
+// データ更新後にダッシュボード統計も更新
+async function fetchPageAndStats() {
+    await fetchPage();
+    await fetchDashboardStats().catch(err => {
+        console.warn('ダッシュボード統計の更新に失敗しました:', err);
+    });
+}
+
 function render(rows, total, viewName = 'product_profit_view') {
     const tb = els.tbody;
     tb.innerHTML = '';
-    
-    // ビューが存在するかどうかを判定
-    const hasProfitView = viewName === 'product_profit_view';
 
-    rows.forEach(x => {
+    rows.forEach((x, index) => {
         const tr = document.createElement('tr');
 
-        // 実際のカラム名に柔軟に対応（product_profit_viewまたはproducts_ddから）
+        // 実際のカラム名に柔軟に対応
         const productName = x.product_name || x.keepa_title || x.title || x.name || '';
         const brand = x.brand || x.maker || x.manufacturer || '';
-        const productUrl = x.dd_url || x.product_url || x.url || '#';
+        const productUrl = x.product_url || x.dd_url || x.url || '#';
         const imageUrl = x.image_url || x.img_url || '';
-        const ddCost = x.dd_cost || x.price_list || x.price || null; // 仕入れ値
+        
         const jan = x.jan || x.jan_code || '';
-        const sku = x.sku || x.sku_code || '';
+        const sku = ''; // SKU情報はビューに含まれていないため空文字
         const asin = x.asin || x.keepa_asin || '';
         const scrapedAt = x.keepa_snapshot_at || x.scraped_at || x.created_at || x.updated_at || '';
         
-        // 利益計算データ（product_profit_viewから、存在しない場合はnull）
-        // ビューが存在しない場合は、利益計算カラムは表示しない
-        const hasProfitView = viewName === 'product_profit_view';
-        const sellingPrice = hasProfitView ? (x.selling_price || null) : null;
-        const grossProfit = hasProfitView ? (x.gross_profit || null) : null;
-        const grossMarginPct = hasProfitView ? (x.gross_margin_pct || null) : null;
-        const monthlySalesEstimate = hasProfitView ? (x.monthly_sales_estimate || null) : null;
-        const monthlyGrossProfit = hasProfitView ? (x.monthly_gross_profit || null) : null;
-        const isAmazonSeller = hasProfitView ? (x.is_amazon_seller || false) : false;
-        const isCandidate = hasProfitView ? (x.is_candidate || false) : false;
+        // 仕入れ値
+        const ddCost = x.dd_cost || x.price_list || null;
+        
+        // 利益計算データ（product_profit_viewから取得 - 既に計算済み）
+        const sellingPrice = x.selling_price || null;
+        const grossProfit = x.gross_profit || null;
+        const grossMarginPct = x.gross_margin_pct || null;
+        // monthly_sales_estimateがNULLの場合は0に変換
+        const monthlySalesEstimate = x.monthly_sales_estimate != null ? x.monthly_sales_estimate : 0;
+        const monthlyGrossProfit = x.monthly_gross_profit || null;
+        const isAmazonSeller = x.is_amazon_seller || false;
+        const isCandidate = x.is_candidate || false;
+        const recommendationScore = x.recommendation_score || 0;
+        
+        // デバッグ: 最初の3商品のみログ出力
+        if (index < 3) {
+            console.log(`✅ 商品 ${x.id} (${productName}):`, {
+                仕入れ値: ddCost,
+                販売価格: sellingPrice,
+                粗利: grossProfit,
+                粗利率: grossMarginPct ? `${grossMarginPct}%` : null,
+                月間販売: monthlySalesEstimate === 0 ? '0件（データ不足）' : `${monthlySalesEstimate}件`,
+                月間粗利: monthlyGrossProfit,
+                Amazon本体: isAmazonSeller,
+                候補商品: isCandidate,
+                推奨度スコア: Math.round(recommendationScore)
+            });
+        }
+        
+        // 候補商品の場合は行を強調表示（月間販売データがある場合のみ）
+        if (isCandidate && monthlySalesEstimate > 0) {
+            tr.style.background = 'linear-gradient(90deg, rgba(25, 135, 84, 0.08) 0%, rgba(25, 135, 84, 0.02) 100%)';
+            tr.style.borderLeft = '3px solid #198754';
+        }
 
         // sel
         const tdSel = document.createElement('td');
@@ -327,14 +350,58 @@ function render(rows, total, viewName = 'product_profit_view') {
         cb.onchange = updateSelInfo;
         tdSel.appendChild(cb);
         tr.appendChild(tdSel);
+        
+        // 推奨度スコア
+        const tdScore = document.createElement('td');
+        tdScore.style.textAlign = 'center';
+        if (recommendationScore > 0 && monthlySalesEstimate > 0) {
+            const scoreSpan = document.createElement('span');
+            scoreSpan.className = 'tag';
+            scoreSpan.textContent = Math.round(recommendationScore);
+            scoreSpan.style.fontSize = '13px';
+            scoreSpan.style.fontWeight = 'bold';
+            scoreSpan.style.minWidth = '40px';
+            scoreSpan.style.display = 'inline-block';
+            
+            // スコアに応じて色分け
+            if (recommendationScore >= 70) {
+                scoreSpan.style.background = '#198754';
+                scoreSpan.style.color = '#fff';
+                scoreSpan.title = '🔥 超優良商品';
+            } else if (recommendationScore >= 50) {
+                scoreSpan.style.background = '#0d6efd';
+                scoreSpan.style.color = '#fff';
+                scoreSpan.title = '⭐ おすすめ商品';
+            } else if (recommendationScore >= 30) {
+                scoreSpan.style.background = '#ffc107';
+                scoreSpan.style.color = '#000';
+                scoreSpan.title = '✅ 良好な商品';
+            } else {
+                scoreSpan.style.background = '#6c757d';
+                scoreSpan.style.color = '#fff';
+                scoreSpan.title = '⚠️ 要検討';
+            }
+            
+            tdScore.appendChild(scoreSpan);
+        } else if (monthlySalesEstimate === 0) {
+            // 月間販売データがない場合
+            tdScore.innerHTML = '<span class="muted" style="font-size:11px;" title="販売データなし">データ不足</span>';
+        } else {
+            tdScore.innerHTML = '<span class="muted">-</span>';
+        }
+        tr.appendChild(tdScore);
 
         // img
         const tdImg = document.createElement('td');
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.className = 'img';
-        img.onerror = () => { img.style.display = 'none'; };
-        tdImg.appendChild(img);
+        if (imageUrl) {
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.className = 'img';
+            img.onerror = () => { img.style.display = 'none'; };
+            tdImg.appendChild(img);
+        } else {
+            tdImg.innerHTML = '<span class="muted">-</span>';
+        }
         tr.appendChild(tdImg);
 
         // title
@@ -364,9 +431,12 @@ function render(rows, total, viewName = 'product_profit_view') {
         // 仕入れ値（dd_cost）
         const tdCost = document.createElement('td');
         tdCost.className = 'num';
-        tdCost.textContent = ddCost != null
-            ? `¥${new Intl.NumberFormat('ja-JP').format(ddCost)}`
-            : '';
+        if (ddCost != null) {
+            tdCost.textContent = `¥${new Intl.NumberFormat('ja-JP').format(ddCost)}`;
+            tdCost.style.fontWeight = '500';
+        } else {
+            tdCost.innerHTML = '<span class="muted">-</span>';
+        }
         tr.appendChild(tdCost);
 
         // ASIN
@@ -405,36 +475,35 @@ function render(rows, total, viewName = 'product_profit_view') {
         // 月間販売見込み
         const tdMonthlySales = document.createElement('td');
         tdMonthlySales.className = 'num';
-        tdMonthlySales.textContent = monthlySalesEstimate != null
-            ? `${monthlySalesEstimate}件`
-            : '';
+        if (monthlySalesEstimate === 0) {
+            tdMonthlySales.innerHTML = '<span class="muted">0件</span>';
+            tdMonthlySales.title = '販売データなし';
+        } else {
+            tdMonthlySales.textContent = `${monthlySalesEstimate}件`;
+        }
         tr.appendChild(tdMonthlySales);
         
         // 月間粗利
         const tdMonthlyProfit = document.createElement('td');
         tdMonthlyProfit.className = 'num';
-        if (monthlyGrossProfit != null) {
+        if (monthlyGrossProfit != null && monthlyGrossProfit !== 0) {
             tdMonthlyProfit.textContent = `¥${new Intl.NumberFormat('ja-JP').format(Math.round(monthlyGrossProfit))}`;
             tdMonthlyProfit.style.fontWeight = 'bold';
             tdMonthlyProfit.style.color = monthlyGrossProfit >= 10000 ? '#198754' : '#6c757d';
+        } else if (monthlySalesEstimate === 0) {
+            tdMonthlyProfit.innerHTML = '<span class="muted">-</span>';
+        } else {
+            tdMonthlyProfit.textContent = '';
         }
         tr.appendChild(tdMonthlyProfit);
         
         // Amazon本体有無
         const tdAmazonSeller = document.createElement('td');
+        tdAmazonSeller.style.textAlign = 'center';
         tdAmazonSeller.innerHTML = isAmazonSeller
-            ? '<span class="tag" style="background:#dc3545;color:#fff;">Amazon</span>'
+            ? '<span class="tag" style="background:#dc3545;color:#fff;font-size:11px;">Amazon</span>'
             : '<span class="muted">-</span>';
         tr.appendChild(tdAmazonSeller);
-        
-        // 候補フラグ
-        const tdCandidate = document.createElement('td');
-        if (isCandidate) {
-            tdCandidate.innerHTML = '<span class="tag" style="background:#198754;color:#fff;">候補</span>';
-        } else {
-            tdCandidate.innerHTML = '<span class="muted">-</span>';
-        }
-        tr.appendChild(tdCandidate);
 
         // source
         const tdSrc = document.createElement('td');
@@ -480,7 +549,7 @@ function render(rows, total, viewName = 'product_profit_view') {
             const pasted = prompt(`商品ID ${id}\nASINを入力してください（JAN: ${jan || '-'}）`);
             if (!pasted) return;
             await setAsin(id, pasted.trim());
-            fetchPage();
+            fetchPageAndStats();
         });
     });
 }
@@ -710,7 +779,7 @@ async function runJanToAsinBatch() {
         
         // 自動更新がONの場合はデータを再取得
         if (document.getElementById('autoRefresh').checked) {
-            setTimeout(() => fetchPage(), 1000);
+            setTimeout(() => fetchPageAndStats(), 1000);
         }
     } catch (error) {
         console.error('JAN→ASINバッチエラー:', error);
@@ -765,7 +834,7 @@ async function runKeepaSnapshotBatch() {
         
         // 自動更新がONの場合はデータを再取得
         if (document.getElementById('autoRefresh').checked) {
-            setTimeout(() => fetchPage(), 1000);
+            setTimeout(() => fetchPageAndStats(), 1000);
         }
     } catch (error) {
         console.error('Keepaスナップショットバッチエラー:', error);
@@ -868,6 +937,88 @@ const autoRefresh = localStorage.getItem('ddweb_autoRefresh') === 'true';
 document.getElementById('autoRefresh').checked = autoRefresh;
 
 /* =========================
+   スマートフィルタ
+========================= */
+// 高利益商品フィルタ
+document.getElementById('filterHighProfit').onclick = () => {
+    els.minGrossProfit.value = '500';
+    els.q.value = '';
+    els.brand.value = '';
+    els.priceMax.value = '';
+    els.minGrossMargin.value = '';
+    els.candidateOnly.checked = false;
+    els.keepaAnalyzedOnly.checked = true; // Keepaデータがあるもののみ
+    state.page = 1;
+    applyFilters();
+};
+
+// 高利益率フィルタ
+document.getElementById('filterHighMargin').onclick = () => {
+    els.minGrossMargin.value = '30';
+    els.q.value = '';
+    els.brand.value = '';
+    els.priceMax.value = '';
+    els.minGrossProfit.value = '';
+    els.candidateOnly.checked = false;
+    els.keepaAnalyzedOnly.checked = true;
+    state.page = 1;
+    applyFilters();
+};
+
+// 高回転商品フィルタ
+document.getElementById('filterHighRotation').onclick = () => {
+    els.candidateOnly.checked = true;
+    els.minGrossMargin.value = '15';
+    els.q.value = '';
+    els.brand.value = '';
+    els.priceMax.value = '';
+    els.minGrossProfit.value = '';
+    els.keepaAnalyzedOnly.checked = true;
+    state.page = 1;
+    applyFilters();
+};
+
+// 総合候補フィルタ
+document.getElementById('filterCandidates').onclick = () => {
+    els.candidateOnly.checked = true;
+    els.q.value = '';
+    els.brand.value = '';
+    els.priceMax.value = '';
+    els.minGrossProfit.value = '';
+    els.minGrossMargin.value = '';
+    els.keepaAnalyzedOnly.checked = true;
+    state.page = 1;
+    applyFilters();
+};
+
+// Amazon本体なしフィルタ
+document.getElementById('filterNoAmazon').onclick = () => {
+    els.candidateOnly.checked = true;
+    els.q.value = '';
+    els.brand.value = '';
+    els.priceMax.value = '';
+    els.minGrossProfit.value = '';
+    els.minGrossMargin.value = '';
+    els.keepaAnalyzedOnly.checked = true;
+    state.page = 1;
+    applyFilters();
+};
+
+// フィルタリセット
+document.getElementById('filterReset').onclick = () => {
+    els.q.value = '';
+    els.brand.value = '';
+    els.priceMax.value = '';
+    els.minGrossProfit.value = '';
+    els.minGrossMargin.value = '';
+    els.candidateOnly.checked = false;
+    els.asinOnly.checked = false;
+    els.keepaAnalyzedOnly.checked = false;
+    state.page = 1;
+    applyFilters();
+};
+
+/* =========================
    Keepa候補検索（任意：Edge Function）
 ========================= */
 document.getElementById('asinFromKeepa').onclick = async () => {
@@ -917,7 +1068,7 @@ document.getElementById('asinFromKeepa').onclick = async () => {
         }
     }
 
-    fetchPage();
+    fetchPageAndStats();
 };
 
 function getRowData(id) {
@@ -1160,27 +1311,27 @@ document.getElementById('reload').onclick = () => {
 
 document.getElementById('prev').onclick = () => {
     state.page = Math.max(1, state.page - 1);
-    fetchPage();
+    fetchPageAndStats();
 };
 
 document.getElementById('next').onclick = () => {
     state.page = state.page + 1;
-    fetchPage();
+    fetchPageAndStats();
 };
 
 els.pageSize.onchange = () => {
     state.pageSize = Number(els.pageSize.value);
     localStorage.setItem('ddweb_pageSize', state.pageSize);
     state.page = 1;
-    fetchPage();
+    fetchPageAndStats();
 };
 
 let t;
-['q', 'brand', 'priceMax', 'asinOnly', 'candidateOnly', 'minGrossProfit', 'minGrossMargin'].forEach(id => {
+['q', 'brand', 'priceMax', 'asinOnly', 'candidateOnly', 'keepaAnalyzedOnly', 'minGrossProfit', 'minGrossMargin'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         el.addEventListener(
-            id === 'asinOnly' || id === 'candidateOnly' ? 'change' : 'input',
+            id === 'asinOnly' || id === 'candidateOnly' || id === 'keepaAnalyzedOnly' ? 'change' : 'input',
             () => {
                 clearTimeout(t);
                 t = setTimeout(() => {
@@ -1198,9 +1349,10 @@ function applyFilters() {
     state.priceMax = els.priceMax.value.trim();
     state.asinOnly = els.asinOnly.checked;
     state.candidateOnly = els.candidateOnly.checked;
+    state.keepaAnalyzedOnly = els.keepaAnalyzedOnly.checked;
     state.minGrossProfit = els.minGrossProfit.value.trim();
     state.minGrossMargin = els.minGrossMargin.value.trim();
-    fetchPage();
+    fetchPageAndStats();
 }
 
 /* =========================
@@ -1295,6 +1447,12 @@ function init() {
 
     initKeepaCard();
     renderPresets();
+    
+    // ダッシュボード統計を取得（非同期、エラーが出てもページ表示は継続）
+    fetchDashboardStats().catch(err => {
+        console.warn('ダッシュボード統計の取得に失敗しました:', err);
+    });
+    
     applyFilters();
 }
 

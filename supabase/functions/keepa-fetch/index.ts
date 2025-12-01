@@ -72,21 +72,36 @@ async function fetchKeepaData(asin: string): Promise<any> {
   
   const product = data.products[0]
   
-  // Keepaの価格データは特殊な形式（-1は未設定、値は実際の価格*100）
+  // Keepaの価格データは特殊な形式
+  // csv配列は [timestamp, price, timestamp, price, ...] の形式
   const parsePrice = (value: number) => {
     if (value === -1 || value === null || value === undefined) return null
-    return Math.round(value / 100)
+    return Math.round(value)
+  }
+  
+  // CSV配列から最新の価格を取得（奇数インデックスが価格データ）
+  const getLatestPrice = (csvArray: number[] | null | undefined): number | null => {
+    if (!csvArray || csvArray.length === 0) return null
+    for (let i = csvArray.length - 1; i >= 0; i--) {
+      if (i % 2 === 1) {
+        const price = csvArray[i]
+        if (price !== -1 && price !== null && price !== undefined) {
+          return price
+        }
+      }
+    }
+    return null
   }
   
   return {
     asin: product.asin,
-    amazon_price: parsePrice(product.csv[0]?.[product.csv[0].length - 1]),
-    new_price: parsePrice(product.csv[1]?.[product.csv[1].length - 1]),
-    buy_box_price: parsePrice(product.csv[18]?.[product.csv[18].length - 1]),
+    amazon_price: parsePrice(getLatestPrice(product.csv[0])),
+    new_price: parsePrice(getLatestPrice(product.csv[1])),
+    buy_box_price: parsePrice(getLatestPrice(product.csv[18])),
     sales_rank: product.salesRanks?.[0]?.current || null,
     sales_rank_drops: product.stats?.salesRankDrops30 || 0,
     category: product.categoryTree?.[0]?.name || 'unknown',
-    seller_count: product.csv[3]?.[product.csv[3].length - 1] || 0,
+    seller_count: getLatestPrice(product.csv[3]) || 0,
     package_weight: product.packageWeight || 0,
     package_length: product.packageLength || 0,
     package_width: product.packageWidth || 0,
