@@ -27,3 +27,5 @@ WHERE asin IS NOT NULL;
 SELECT 'スキップフラグをリセットしました。バッチ処理がすべての商品を再処理します。' as message;
 
 
+
+
